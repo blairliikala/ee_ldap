@@ -14,14 +14,15 @@
 
 class Unt_ldap_ext {
 
-  public $name           = 'UNT LDAP Authentication 3';
+  public $name           = 'LDAP Authentication 3';
   public $version        = '3.0.0';
   public $description    = 'Handles LDAP login / account creation. Written by Blair';
   public $settings_exist = 'y';
   public $docs_url       = '';
-  private $debug         = false;
+  private $debug         = true;
 
-  /* Assuming Defaults:
+  /*
+    Assuming Defaults:
     Super Admin = 1
     Banned = 2
     Guest = 3
@@ -29,7 +30,7 @@ class Unt_ldap_ext {
     Members = 5
   */
 
-  public $defaults = array(
+  private $defaults = array(
     // Possible Roles:
     'groupID_student'            => 8, // 8
     'groupID_facultystaff'       => 9, // 9
@@ -42,12 +43,12 @@ class Unt_ldap_ext {
     // Roles that will not use LDAP to authenticate.
     'protected_roles'            => array(),
 
-    'exempt_from_role_changes'   => array( 1, 6, 9),
+    'exempt_from_role_changes'   => array(1, 6, 9),
 
     // Custom Member Fields:
     'first_name_field_id'        => 4,
     'last_name_field_id'         => 5,
-    'ignore_ldap_role_field_id'     => 30,
+    'ignore_ldap_role_field_id'  => 30,
     'ferpa_withdraw_field_id'    => 24,
     'ldap_dump_field_id'         => 0,
     'ldap_affiliation_id'        => 0,
@@ -56,7 +57,6 @@ class Unt_ldap_ext {
     // Misc
     'ldap_url'                   => 'id.ldap.untsystem.edu:389',
     'use_ldap_account_creation'  => 'yes',
-    'a_super_ninja_key'          => '0A9ZMEdNZIeBHORUe2MbaPiOYIL1jKdXi0pikGu1',  // Used for HMAC.
     'ldap_character_encode'      => 'Windows-1252',
   );
 
@@ -76,7 +76,7 @@ class Unt_ldap_ext {
 	/*
 	  EE method called when the extension is activated
 	*/
-	function activate_extension ()
+	public function activate_extension ()
 	{
    
     $settings = $this->defaults;
@@ -118,7 +118,7 @@ class Unt_ldap_ext {
         "description"   => "Will bypass LDAP group sorting and keep member in the set member group.",
         "settings"      => array('value_label_pairs' => 
                             array(
-                              'no' => "No",
+                              '' => "No",
                               'yes' => "Yes Ignore auto assignment",
                             )
                             ),
@@ -131,7 +131,7 @@ class Unt_ldap_ext {
         "description"   => "Set to yes automatically if the flag exists to have directory info omitted by reqeuest of the student.",
         "settings"      => array('value_label_pairs' => 
                             array(
-                              'no' => "No",
+                              '' => "No",
                               'yes' => "Yes Flag is Set",
                             )
                             ),
@@ -251,7 +251,7 @@ class Unt_ldap_ext {
 	/*
 	  EE method called when the extension is updated
 	*/
-	function update_extension($current = '')
+	public function update_extension($current = '')
 	{
 
     /** EE3+ **/
@@ -272,7 +272,7 @@ class Unt_ldap_ext {
 	/*
 	  EE method called when the extension is disabled
 	*/
-	function disable_extension()
+	public function disable_extension()
 	{
     ee()->db->where('class', __CLASS__);
     ee()->db->delete('extensions');    
@@ -281,7 +281,7 @@ class Unt_ldap_ext {
 	/*
 	  Configuration for the extension settings page
 	*/
-	function settings()
+	public function settings()
 	{
 
 
@@ -373,7 +373,7 @@ class Unt_ldap_ext {
   /*
     Where it all begins!
   */
-  function login_authenticate_start()
+  protected function login_authenticate_start()
   {
 
    
@@ -418,8 +418,9 @@ class Unt_ldap_ext {
       }
 
 
+      // Role Groups to skip LDAP and use EE member.  Guests & Educators.
       if (version_compare(APP_VER, '6.0.0', '>')) {
-        // Use normal authentication for groups that wouldn't use LDAP, and exit this script. Guest & Educators.
+        // v6
         foreach($member_obj->getAllRoles() as $role)
         {
           $allRoleIds[] = $role->role_id; // Get all the member's current roles in an array.
@@ -501,7 +502,7 @@ class Unt_ldap_ext {
   Create EE user too....?
 */
 
-function sync_user_details($user_info, $unencrypted_password, $member_obj)
+private function sync_user_details($user_info, $unencrypted_password, $member_obj)
 {
   
   // Add random password so real passwords are not stored.  This won't work with EE yet.
@@ -626,6 +627,8 @@ function sync_user_details($user_info, $unencrypted_password, $member_obj)
   
     $member_obj->{'m_field_id_'.$this->settings['ferpa_withdraw_field_id']} = $user_info['publishstudentinfo'][0];
 
+  } else {
+    $member_obj->{'m_field_id_'.$this->settings['ferpa_withdraw_field_id']} = ''; // Set to no, or blank.
   }
 
 
@@ -668,7 +671,7 @@ function sync_user_details($user_info, $unencrypted_password, $member_obj)
   - Return a freshly made member ID.
 */
 
-function create_ee_user($user_info, $password_array)
+private function create_ee_user($user_info, $password_array)
 {
 
   $this->debug_print('Creating EE account using LDAP data...');
@@ -828,10 +831,9 @@ private function get_primaryrole_id_assignment ($user_info)
       return $this->settings['groupID_affiliate'];
       break;      
 
-
     default;
       $this->debug_print('Returning Role of default of 3, "guest."');
-      return 3; // Default Guest.
+      return 3; // Defaulted to Guest.  Guest should always be 3.
       break;
 
   }
@@ -848,8 +850,20 @@ private function get_primaryrole_id_assignment ($user_info)
 */
 private function authenticate_user_ldap($user_info, $unencrypted_password)
 {
+  if ($this->settings['ldap_url'] =='') {
+    ee()->logger->developer('LDAP URL is empty, can not authenticate.');
+    return;
+  }
+
   $ldap_url = $this->settings['ldap_url'];
   $ldap_url_array = explode(':', $ldap_url);
+
+  // Remove the ldaps:// if it was included by accident.
+  if ( count($ldap_url_array) > 1 ) {
+    unset($ldap_url_array[0]);
+    $ldap_url_array[0] = ltrim($ldap_url_array[0], "//");
+    ee()->logger->developer('LDAP URL includes "ldaps://" and should be removed.');
+  }
 
   $login_settings        = array();
   //$login_settings['ds']  = ldap_connect("ldaps://id.ldap.untsystem.edu", 389);
@@ -923,26 +937,6 @@ private function greedy_ldap_grab($login_settings, $user_info)
 
 
 
-
-//-------------------------------------------------------
-/* 
-  Create and return a unique key for Intercom using the EE member ID.
-  The member ID has to be set to Intercom as the "unique user ID."
-*/
-private function createHMAC($ee_member_id)
-{
-  $this->debug_print("Creating HMAC using EE member ID: ".$ee_member_id[0]);
-  return hash_hmac(
-    'sha256', // hash function
-    $ee_member_id, // user's ID.  EUID or EE name.
-    $this->a_super_ninja_key // secret key (keep safe!)
-  );
-
-}
-//-------------------------------------------------------
-
-
-
 //-------------------------------------------------------
   /*
 
@@ -950,7 +944,7 @@ private function createHMAC($ee_member_id)
 
   */
 
-	function debug_print($message, $br="<br/>\n")
+	private function debug_print($message, $br="<br/>\n")
 	{
 		if ($this->debug)
 		{
@@ -968,7 +962,7 @@ private function createHMAC($ee_member_id)
 	}
 
 
-	function ldap_encode($text)
+	private function ldap_encode($text)
 	{
 		return iconv("UTF-8", $this->settings['ldap_character_encode'], $text);
 	}
