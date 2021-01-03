@@ -19,7 +19,7 @@ class Unt_ldap_ext {
   public $description    = 'Handles LDAP login / account creation. Written by Blair';
   public $settings_exist = 'y';
   public $docs_url       = '';
-  private $debug         = true;
+  protected $debug         = true;
 
   /*
     Assuming Defaults:
@@ -30,7 +30,7 @@ class Unt_ldap_ext {
     Members = 5
   */
 
-  private $defaults = array(
+  protected $defaults = array(
     // Possible Roles:
     'groupID_student'            => 8, // 8
     'groupID_facultystaff'       => 9, // 9
@@ -42,6 +42,9 @@ class Unt_ldap_ext {
 
     // Roles that will not use LDAP to authenticate.
     'protected_roles'            => array(),
+
+    // Roles assigned to this group will use LDAP.
+    'use_LDAP_rolegroup_id'      => 1,
 
     'exempt_from_role_changes'   => array(1, 6, 9),
 
@@ -345,6 +348,7 @@ class Unt_ldap_ext {
     $settings['ldap_dump_field_id']         = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_dump_field_id']);
     $settings['ldap_affiliation_id']        = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_affiliation_id']);
     $settings['protected_roles']            = array('c', $role_list, array(1, 3, $this->defaults['groupID_edu'] ));
+    $settings['use_LDAP_rolegroup_id']      = array('r', $role_list, array($this->defaults['use_LDAP_rolegroup_id'] ));
     $settings['exempt_from_role_changes']   = array('c', $role_list, $this->defaults['exempt_from_role_changes'] );
 
     
@@ -360,7 +364,7 @@ class Unt_ldap_ext {
 	/*
 	 Called by the member_member_login_start hook
 	*/
-	function member_member_login_start()
+	public function member_member_login_start()
 	{
 		return $this->login_authenticate_start();
 	}
@@ -373,9 +377,8 @@ class Unt_ldap_ext {
   /*
     Where it all begins!
   */
-  protected function login_authenticate_start()
+  public function login_authenticate_start()
   {
-
    
     $user_info = array(); // Store extra user info.
     $user_info['username'] = ee()->input->post('username', true);
@@ -396,17 +399,6 @@ class Unt_ldap_ext {
       // Get the existing member's ID from EE.
       $this->debug_print( 'Initial user search found user ID: '.$member_obj->getId() );
 
-      if (version_compare(APP_VER, '6.0.0', '<')) {
-
-        $user_info['current_primaryrole_id'] = $member_obj->group_id; // I think "group_id" is the right name.
-
-      } else {
-
-        $user_info['current_primaryrole_id'] = $member_obj->PrimaryRole->getId();
-
-      }
-
-      
       // if ( $member_obj->isSuperAdmin() )  Won't update Password for staff with super admin accounts.
       if ( $member_obj->getId() == 1) 
       {
@@ -417,18 +409,40 @@ class Unt_ldap_ext {
         return;
       }
 
+      if (version_compare(APP_VER, '6.0.0', '<')) {
+
+        $user_info['current_primaryrole_id'] = $member_obj->group_id; // I think "group_id" is the right name.
+
+      } else {
+
+        $user_info['current_primaryrole_id'] = $member_obj->PrimaryRole->getId();
+
+      }
+
 
       // Role Groups to skip LDAP and use EE member.  Guests & Educators.
-      if (version_compare(APP_VER, '6.0.0', '>')) {
+      if (version_compare(APP_VER, '6.0.0', '>')) {        
         // v6
+
+        // Get all the member's current roles in an array.
         foreach($member_obj->getAllRoles() as $role)
         {
-          $allRoleIds[] = $role->role_id; // Get all the member's current roles in an array.
+          $member_role_ids[] = $role->role_id; 
         }
-        foreach($this->settings['protected_roles'] as $protected_role_id)
-        {
 
-          if ( in_array($protected_role_id, $allRoleIds) ) {
+        // Get All the roles under the LDAP role group.
+        $this->setttings['use_LDAP_rolegroup_id'] = 1; //  REMOVE THIS AFTER REIINSTALL.
+        $ldap_role_group = ee('Model')->get('RoleGroup', $this->setttings['use_LDAP_rolegroup_id'])->first();
+        foreach($ldap_role_group->Roles as $role)
+        {
+          $ldap_role_ids = $role->getDictionary('name', 'role_id'); // Returns array of name, role_id
+        }
+
+        // See if any of the roles match.
+        // foreach($this->settings['protected_roles'] as $protected_role_id)
+        foreach($member_role_ids as $member_role_id)
+        {
+          if ( !in_array($member_role_id, $ldap_role_ids) ) {
             $this->debug_print('<span class="color:red">This members group ID does not use LDAP to check login, so exiting this Extension and using normal EE login proceses.</span>');
             if ($this->debug) {
               exit();
@@ -859,9 +873,9 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
   $ldap_url_array = explode(':', $ldap_url);
 
   // Remove the ldaps:// if it was included by accident.
-  if ( count($ldap_url_array) > 1 ) {
+  if ( count($ldap_url_array) > 2 ) {
+    $ldap_url_array[1] = ltrim($ldap_url_array[1], "//");
     unset($ldap_url_array[0]);
-    $ldap_url_array[0] = ltrim($ldap_url_array[0], "//");
     ee()->logger->developer('LDAP URL includes "ldaps://" and should be removed.');
   }
 
