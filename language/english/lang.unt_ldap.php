@@ -22,6 +22,7 @@ $lang = array(
 	'ldap_affiliation_id'	    => '<h2>Affiliation ID</h2><p>LDAP Affiliation field.</p>',
 	'ldap_url'					=> 'LDAP URL  <p><small>example.com:1234</small></p>',
 	'exempt_from_role_changes'  => '<h2>Disable Auto Role Sorting</h2><p>Members can get in, but not automatically assigned out.',
+	'use_LDAP_rolegroup_id'	    => '<h2>Role Groups that use LDAP to authenticate.</h2><p>Selecting a group will include all associated roles to use LDAP for authentication.</p>',
 
 	'yes_ldap_account_creation' => 'Yes',
 	'no_ldap_account_creation'  => 'No',

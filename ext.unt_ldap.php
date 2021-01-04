@@ -170,32 +170,7 @@ class Unt_ldap_ext {
 
 
     /************************** Preset primary roles **************************/
-    if (version_compare(APP_VER, '6.0.0', '>')) {
-      $allRoles = ee('Model')->get('Role')->fields('short_name', 'role_id')->all();
-      foreach($allRoles as $role)
-      {
-
-        if ($role->short_name === 'alumni') {
-          $settings['groupID_alumni'] = $role->role_id;
-        }
-        if ($role->short_name === 'faculty_staff') {
-          $settings['groupID_facultystaff'] = $role->role_id;
-        }
-        if ($role->short_name === 'students') {
-          $settings['groupID_student'] = $role->role_id;        
-        }
-        if ($role->short_name === 'educators') {
-          $settings['groupID_edu'] = $role->role_id;        
-        }
-        if ($role->short_name === 'editors') {
-          $settings['groupID_editors'] = $role->role_id;        
-        }    
-        if ($role->short_name === 'discontinued') {
-          $settings['groupID_discontinued'] = $role->role_id;        
-        }        
-
-      }
-    } else {
+    if (version_compare(APP_VER, '6.0.0', '<')) {
 
       $allRoles = ee('Model')->get('MemberGroup')->fields('short_name', 'group_id')->all();
       foreach($allRoles as $role)
@@ -222,6 +197,41 @@ class Unt_ldap_ext {
 
       }
 
+    } else {
+
+      $allRoles = ee('Model')->get('Role')->fields('short_name', 'role_id')->all();
+      foreach($allRoles as $role)
+      {
+
+        if ($role->short_name === 'alumni') {
+          $settings['groupID_alumni'] = $role->role_id;
+        }
+        if ($role->short_name === 'faculty_staff') {
+          $settings['groupID_facultystaff'] = $role->role_id;
+        }
+        if ($role->short_name === 'students') {
+          $settings['groupID_student'] = $role->role_id;        
+        }
+        if ($role->short_name === 'educators') {
+          $settings['groupID_edu'] = $role->role_id;        
+        }
+        if ($role->short_name === 'editors') {
+          $settings['groupID_editors'] = $role->role_id;        
+        }    
+        if ($role->short_name === 'discontinued') {
+          $settings['groupID_discontinued'] = $role->role_id;        
+        }        
+
+      }
+
+      $rolegroups = ee('Model')->get('RoleGroup')->fields('name', 'group_id')->all();
+      foreach($rolegroups as $group)
+      {
+        if ( strpos("ldap", strtolower($group->name)) )
+        {
+          $settings['use_LDAP_rolegroup_id'] = $group->group_id;
+        }
+      }
     }
 
     /**************************/
@@ -292,50 +302,27 @@ class Unt_ldap_ext {
       
       // v5
       // Get Member Groups.
-      $groups[] = ee('Model')->get('MemberGroup')->all();
-
-      // Create array of value, name for each group.
-      $role_list = array();
-
-      foreach($groups as $group) {
-
-          $role_list[$group->group_id] = $group->group_title;
-          
-      }
+      $role_list = ee('Model')->get('MemberGroup')->fields('group_id','name')->all()->getDictionary('group_id','name');
 
     } else {
 
       // v6
       // Get Member Groups.
-      $roles = ee('Model')->get('Role')->all();
+      $role_list = ee('Model')->get('Role')->fields('role_id','name')->all()->getDictionary('role_id','name');
 
-      // Create array of value, name for each group.
-      $role_list = array();
-
-      foreach($roles as $role) {
-
-          $role_list[$role->role_id] = $role->name;
-          
-      }
     }
     // Remove Super Admin from list.
     unset($role_list[1]);
 
     // Get custom member fields for settings options.
-    $member_fields = ee('Model')->get('MemberField')->all();
+    $all_member_fields = ee('Model')->get('MemberField')->fields('m_field_label','m_field_id')->all()->getDictionary('m_field_id', 'm_field_label');
 
-    $all_member_fields = array();
-
-    foreach($member_fields as $field) {
-
-      // Creates array of: m_field_id_1 => Field Name
-      $all_member_fields[$field->m_field_id] = $field->m_field_label;
-
-    }
+    // Get Role Groups. array(1 =>'super admin' ...etc)
+    $rolegroups = ee('Model')->get('RoleGroup')->fields('name', 'group_id')->all()->getDictionary('group_id', 'name');
 
     $settings['groupID_facultystaff']		 = array('r', $role_list, $this->defaults['groupID_facultystaff']);
-		$settings['groupID_student']			   = array('r', $role_list, $this->defaults['groupID_student']);
-		$settings['groupID_alumni']				   = array('r', $role_list, $this->defaults['groupID_alumni']);
+    $settings['groupID_student']			   = array('r', $role_list, $this->defaults['groupID_student']);
+    $settings['groupID_alumni']				   = array('r', $role_list, $this->defaults['groupID_alumni']);
     $settings['groupID_edu']             = array('r', $role_list, $this->defaults['groupID_edu']);
     $settings['groupID_discontinued']    = array('r', $role_list, $this->defaults['groupID_discontinued']);
     $settings['groupID_affiliate']       = array('r', $role_list, $this->defaults['groupID_affiliate']);
@@ -347,18 +334,23 @@ class Unt_ldap_ext {
     $settings['ferpa_withdraw_field_id']    = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ferpa_withdraw_field_id']);
     $settings['ldap_dump_field_id']         = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_dump_field_id']);
     $settings['ldap_affiliation_id']        = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_affiliation_id']);
-    $settings['protected_roles']            = array('c', $role_list, array(1, 3, $this->defaults['groupID_edu'] ));
-    $settings['use_LDAP_rolegroup_id']      = array('r', $role_list, array($this->defaults['use_LDAP_rolegroup_id'] ));
     $settings['exempt_from_role_changes']   = array('c', $role_list, $this->defaults['exempt_from_role_changes'] );
+
+
+    // Opt Out.  Old way.
+    $settings['protected_roles']            = array('c', $role_list, array(1, 3, $this->defaults['groupID_edu'] ));
+
+    // Opt In.  new way using role group.
+    $settings['use_LDAP_rolegroup_id']      = array('r', $rolegroups, array($this->defaults['use_LDAP_rolegroup_id'] ));
 
     
     $settings['ldap_url']                   = array('i', '', $this->defaults['ldap_url']); // example.com:port
     $settings['ldap_character_encode']      = array('i', '', $this->defaults['ldap_character_encode']);
-		$settings['use_ldap_account_creation'] 	= array('r', array('yes' => 'yes_ldap_account_creation',
-		                                                           'no'  => 'no_ldap_account_creation'),
+    $settings['use_ldap_account_creation'] 	= array('r', array('yes' => 'yes_ldap_account_creation',
+                                                              'no'  => 'no_ldap_account_creation'),
                                                     $this->defaults['use_ldap_account_creation']);
 
-		return $settings;
+    return $settings;
 	}
 
 	/*
@@ -421,9 +413,21 @@ class Unt_ldap_ext {
 
 
       // Role Groups to skip LDAP and use EE member.  Guests & Educators.
-      if (version_compare(APP_VER, '6.0.0', '>')) {        
-        // v6
+      if (version_compare(APP_VER, '6.0.0', '<')) {     
 
+          //v5
+          if ( in_array($member_obj->group_id, $this->settings['protected_roles']) )
+          {
+            $this->debug_print('<span class="color:red">This members group ID does not use LDAP to check login, so exiting this Extension and using normal EE login proceses.</span>');
+            if ($this->debug) {
+              exit();
+            }
+            return;          
+          }
+
+      } else {
+
+        // v6
         // Get all the member's current roles in an array.
         foreach($member_obj->getAllRoles() as $role)
         {
@@ -431,7 +435,6 @@ class Unt_ldap_ext {
         }
 
         // Get All the roles under the LDAP role group.
-        $this->setttings['use_LDAP_rolegroup_id'] = 1; //  REMOVE THIS AFTER REIINSTALL.
         $ldap_role_group = ee('Model')->get('RoleGroup', $this->setttings['use_LDAP_rolegroup_id'])->first();
         foreach($ldap_role_group->Roles as $role)
         {
@@ -449,18 +452,7 @@ class Unt_ldap_ext {
             }
             return;          
           }
-        }
-
-      } else {
-          //v5
-          if ( in_array($member_obj->group_id, $this->settings['protected_roles']) )
-          {
-            $this->debug_print('<span class="color:red">This members group ID does not use LDAP to check login, so exiting this Extension and using normal EE login proceses.</span>');
-            if ($this->debug) {
-              exit();
-            }
-            return;          
-          }
+        }        
 
       }
 
@@ -880,7 +872,6 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
   }
 
   $login_settings        = array();
-  //$login_settings['ds']  = ldap_connect("ldaps://id.ldap.untsystem.edu", 389);
   $login_settings['ds']  = ldap_connect("ldaps://".$ldap_url_array[0], $ldap_url_array[1]);
   $login_settings['dn']  = "uid=".$user_info['username'].",ou=people,o=unt";
 
