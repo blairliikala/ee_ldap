@@ -31,7 +31,7 @@ class Unt_ldap_ext {
   public $description    = 'Handles LDAP login / account creation. Written by Blair';
   public $settings_exist = 'y';
   public $docs_url       = '';
-  protected $debug         = true;
+  protected $debug         = false;
 
   /*
     Assuming Defaults:
