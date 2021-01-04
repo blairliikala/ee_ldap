@@ -12,6 +12,18 @@
  * 
  */
 
+/*
+
+To Do:
+- Create Roles on install.
+This seems to be very complicated.
+
+- Remove v5 code?
+- Change classname to ee_ldap?
+
+*/
+
+
 class Unt_ldap_ext {
 
   public $name           = 'LDAP Authentication 3';
@@ -32,30 +44,30 @@ class Unt_ldap_ext {
 
   protected $defaults = array(
     // Possible Roles:
-    'groupID_student'            => 8, // 8
-    'groupID_facultystaff'       => 9, // 9
-    'groupID_alumni'             => 10, // 10
-    'groupID_edu'                => 11, // 11
-    'groupID_discontinued'       => 12, // 12
+    'groupID_student'            => 8,
+    'groupID_facultystaff'       => 9,
+    'groupID_alumni'             => 10,
+    'groupID_edu'                => 11,
+    'groupID_discontinued'       => 12,
     'groupID_editors'            => 6,
-    'groupID_affiliate'          => 10,
+    'groupID_affiliate'          => 0,
 
-    // Roles that will not use LDAP to authenticate.
+    // Roles that will not use LDAP to authenticate. v5
     'protected_roles'            => array(),
 
-    // Roles assigned to this group will use LDAP.
+    // Roles assigned to this group will use LDAP. v6
     'use_LDAP_rolegroup_id'      => 1,
 
+    // A member will not be auto moved out of these roles.
     'exempt_from_role_changes'   => array(1, 6, 9),
 
-    // Custom Member Fields:
-    'first_name_field_id'        => 4,
-    'last_name_field_id'         => 5,
-    'ignore_ldap_role_field_id'  => 30,
-    'ferpa_withdraw_field_id'    => 24,
-    'ldap_dump_field_id'         => 0,
-    'ldap_affiliation_id'        => 0,
-    'ldap_prefered_name_id'      => 0,
+    // Custom Member Field Ids:
+    'ignore_ldap_role_field_id'  => 0, // A member will not be auto moved out of their current role.
+    'ferpa_withdraw_field_id'    => 0, // Used in the templates to hide directory data from scripts.
+    'ldap_dump_field_id'         => 0, // Log
+    'ldap_affiliation_id'        => 0, // From LDAP.
+    'first_name_field_id'        => 0, // From LDAP.
+    'last_name_field_id'         => 0, // From LDAP.
 
     // Misc
     'ldap_url'                   => 'id.ldap.untsystem.edu:389',
@@ -169,9 +181,11 @@ class Unt_ldap_ext {
     /**************************/
 
 
-    /************************** Preset primary roles **************************/
+    /************************** Preset primary roles, and Role Group **************************/
+    // Look for any existing roles or role groups and assign to settings.
     if (version_compare(APP_VER, '6.0.0', '<')) {
 
+      // v5
       $allRoles = ee('Model')->get('MemberGroup')->fields('short_name', 'group_id')->all();
       foreach($allRoles as $role)
       {
@@ -194,11 +208,15 @@ class Unt_ldap_ext {
         if ($role->short_name === 'discontinued') {
           $settings['groupID_discontinued'] = $role->group_id;        
         }        
+        if ($role->short_name === 'affiliate') {
+          $settings['groupID_affiliate'] = $role->group_id;        
+        }
 
       }
 
     } else {
 
+      // v6
       $allRoles = ee('Model')->get('Role')->fields('short_name', 'role_id')->all();
       foreach($allRoles as $role)
       {
@@ -221,17 +239,59 @@ class Unt_ldap_ext {
         if ($role->short_name === 'discontinued') {
           $settings['groupID_discontinued'] = $role->role_id;        
         }        
+        if ($role->short_name === 'affiliate') {
+          $settings['groupID_affiliate'] = $role->role_id;        
+        }
 
       }
 
+      // Check or create Role Group
       $rolegroups = ee('Model')->get('RoleGroup')->fields('name', 'group_id')->all();
-      foreach($rolegroups as $group)
+      $existing = false;
+      if ($rolegroups !== NULL)
       {
-        if ( strpos("ldap", strtolower($group->name)) )
+        foreach($rolegroups as $group)
         {
-          $settings['use_LDAP_rolegroup_id'] = $group->group_id;
+          if ( stripos( $group->name, "dap" ) )
+          {
+            $settings['use_LDAP_rolegroup_id'] = $group->group_id;
+            $existing = true;
+          }
         }
       }
+
+      if ($existing === false)
+      {
+        // Create Role Group and add roles to the group.
+        $group_data = array(
+          "name" => "LDAP Authenticated Roles",
+        );
+
+        // Initial dataset of roles that will use LDAP.
+        $role_members = array(
+          1,
+          $settings['groupID_alumni'],
+          $settings['groupID_facultystaff'],
+          $settings['groupID_student'],
+          $settings['groupID_editors'],
+          $settings['groupID_discontinued'],
+          $settings['groupID_affiliate'],
+        );
+
+        // Remove Empty roles.
+        foreach($role_members as $key=>$role_id)
+        {
+          if (!$role_id OR $role_id ==='') {
+            unset($role_members[$key]);
+          }
+        }
+        
+        $role_group = ee('Model')->make('RoleGroup');
+        $role_group->Roles = ee('Model')->get('Role', $role_members)->all();
+        $role_group->set($group_data);
+        $role_group->save();
+      }
+
     }
 
     /**************************/
@@ -267,9 +327,7 @@ class Unt_ldap_ext {
   public function update_extension($current = '')
   {
 
-    /** EE3+ **/
-
-    if ($current < '1.0')
+    if ($current < '3.0')
     {
         // Update to version 2.0
     }
@@ -278,7 +336,6 @@ class Unt_ldap_ext {
                 'extensions',
                 array('version' => $this->version)
     );
-
 
   }
 
@@ -399,33 +456,26 @@ class Unt_ldap_ext {
         return;
       }
 
-      if (version_compare(APP_VER, '6.0.0', '<')) {
-
-        $user_info['current_primaryrole_id'] = $member_obj->group_id; // I think "group_id" is the right name.
-
-      } else {
-
-        $user_info['current_primaryrole_id'] = $member_obj->PrimaryRole->getId();
-
-      }
-
 
       // Role Groups to skip LDAP and use EE member.  Guests & Educators.
       if (version_compare(APP_VER, '6.0.0', '<')) {     
+        //v5
+        // $user_info['current_primaryrole_id'] = $member_obj->group_id; // I think "group_id" is the right name.
 
-          //v5
-          if ( in_array($member_obj->group_id, $this->settings['protected_roles']) )
-          {
-            $this->debug_print('<span class="color:red">This members group ID does not use LDAP to check login, so exiting this Extension and using normal EE login proceses.</span>');
-            if ($this->debug) {
-              exit();
-            }
-            return;          
+        if ( in_array($member_obj->group_id, $this->settings['protected_roles']) )
+        {
+          $this->debug_print('<span class="color:red">This members group ID does not use LDAP to check login, so exiting this Extension and using normal EE login proceses.</span>');
+          if ($this->debug) {
+            exit();
           }
+          return;          
+        }
 
       } else {
 
         // v6
+        // $user_info['current_primaryrole_id'] = $member_obj->PrimaryRole->getId();
+
         // Get all the member's current roles in an array.
         foreach($member_obj->getAllRoles() as $role)
         {
@@ -433,14 +483,13 @@ class Unt_ldap_ext {
         }
 
         // Get All the roles under the LDAP role group.
-        $ldap_role_group = ee('Model')->get('RoleGroup', $this->setttings['use_LDAP_rolegroup_id'])->first();
+        $ldap_role_group = ee('Model')->get('RoleGroup', $this->settings['use_LDAP_rolegroup_id'])->first();
         foreach($ldap_role_group->Roles as $role)
         {
-          $ldap_role_ids = $role->getDictionary('name', 'role_id'); // Returns array of name, role_id
+          $ldap_role_ids[] = $role->role_id;
         }
 
         // See if any of the roles match.
-        // foreach($this->settings['protected_roles'] as $protected_role_id)
         foreach($member_role_ids as $member_role_id)
         {
           if ( !in_array($member_role_id, $ldap_role_ids) ) {
@@ -519,11 +568,13 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
 
     //**************** Updating Password fields.
 
-      // Will set hashed password and salt to member object.
+      // Native Member Model method to create hashed/salted password and clear things.
+      $this->debug_print("Syncing password.");
       $member_obj->hashAndUpdatePassword($unencrypted_password);
       //$member_obj->password = $password_array['password'];
-      //$member_obj->salt     = $password_array['salt'];
+      //$member_obj->salt     = $password_array['salt']; // Depreciated in V6
 
+      $this->debug_print("Updating Last Visit and IP address.");
       $member_obj->set(array(
         'last_visit'  => ee()->localize->now,
         'ip_address'  => ee()->input->ip_address(),
@@ -541,13 +592,17 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
       
       $this->debug_print("Member does not have ignore role assignment flag enabled.");
       
-      if (version_compare(APP_VER, '6.0.0', '>')) {
+      if (version_compare(APP_VER, '6.0.0', '<')) {
+
+        $allRoleIds = array( $member_obj->group_id ); //v5
+
+      } else {
+
         // Get all role IDs the member is in.
         foreach($member_obj->getAllRoles() as $role) {
           $allRoleIds[] = $role->role_id;
         }
-      } else {
-        $allRoleIds = array( $member_obj->group_id ); //v5
+
       }
 
       // If any match, then the member should be excluded from auto group assignments.
@@ -599,10 +654,7 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
 
     $this->debug_print('Attempting to create EE user...');
 
-    ee()->load->library('auth');
-    $password_array = ee()->auth->hash_password($unencrypted_password);
-
-    $member_obj = $this->create_ee_user($user_info, $password_array);
+    $member_obj = $this->create_ee_user($user_info, $unencrypted_password);
 
   }
 
@@ -675,10 +727,13 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
   - Return a freshly made member ID.
 */
 
-private function create_ee_user($user_info, $password_array)
+private function create_ee_user($user_info, $unencrypted_password)
 {
 
   $this->debug_print('Creating EE account using LDAP data...');
+
+  ee()->load->library('auth');
+  $password_array = ee()->auth->hash_password($unencrypted_password);
 
   $data['username']         		= $user_info['username'];
   $data['email']            		= $user_info['mail'][0];
@@ -856,6 +911,7 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
 {
   if ($this->settings['ldap_url'] =='') {
     ee()->logger->developer('LDAP URL is empty, can not authenticate.');
+    // show_error(lang('LDAP URL is empty, can not authenticate'), 403);
     return;
   }
 
