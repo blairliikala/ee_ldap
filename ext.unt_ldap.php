@@ -66,21 +66,21 @@ class Unt_ldap_ext {
 
 
   function __construct($settings = '')
-	{
-		$this->settings = $settings;
+  {
+    $this->settings = $settings;
     ee()->load->library('logger');
-	}	
+  }	
 
 //-------------------------------------------------------
 /*
           Addon Setup Things
 */        
 
-	/*
-	  EE method called when the extension is activated
-	*/
-	public function activate_extension ()
-	{
+  /*
+    EE method called when the extension is activated
+  */
+  public function activate_extension ()
+  {
    
     $settings = $this->defaults;
 
@@ -239,33 +239,33 @@ class Unt_ldap_ext {
 
     /************************** Install the Extension **************************/
     $hooks = array(
-			'login_authenticate_start'  => 'login_authenticate_start',
-			'member_member_login_start' => 'member_member_login_start'
-		);
+      'login_authenticate_start'  => 'login_authenticate_start',
+      'member_member_login_start' => 'member_member_login_start'
+    );
 
-		foreach ($hooks as $hook => $method)
-		{
-			ee()->db->query(ee()->db->insert_string('exp_extensions',
-				array(
-					'extension_id' => '',
-					'class'        => __CLASS__,
-					'method'       => $method,
-					'hook'         => $hook,
-					'settings'     => serialize($settings),
-					'priority'     => 10,
-					'version'      => $this->version,
-					'enabled'      => "y"
-				)
-			));
+    foreach ($hooks as $hook => $method)
+    {
+      ee()->db->query(ee()->db->insert_string('exp_extensions',
+        array(
+          'extension_id' => '',
+          'class'        => __CLASS__,
+          'method'       => $method,
+          'hook'         => $hook,
+          'settings'     => serialize($settings),
+          'priority'     => 10,
+          'version'      => $this->version,
+          'enabled'      => "y"
+        )
+      ));
     }
 
-	}
+  }
 
-	/*
-	  EE method called when the extension is updated
-	*/
-	public function update_extension($current = '')
-	{
+  /*
+    EE method called when the extension is updated
+  */
+  public function update_extension($current = '')
+  {
 
     /** EE3+ **/
 
@@ -280,34 +280,32 @@ class Unt_ldap_ext {
     );
 
 
-	}
+  }
 
-	/*
-	  EE method called when the extension is disabled
-	*/
-	public function disable_extension()
-	{
+  /*
+    EE method called when the extension is disabled
+  */
+  public function disable_extension()
+  {
     ee()->db->where('class', __CLASS__);
     ee()->db->delete('extensions');    
-	}
+  }
 
-	/*
-	  Configuration for the extension settings page
-	*/
-	public function settings()
-	{
+  /*
+    Configuration for the extension settings page
+  */
+  public function settings()
+  {
 
 
     if (version_compare(APP_VER, '6.0.0', '<')) {
       
-      // v5
-      // Get Member Groups.
+      // v5 Get Member Groups.
       $role_list = ee('Model')->get('MemberGroup')->fields('group_id','name')->all()->getDictionary('group_id','name');
 
     } else {
 
-      // v6
-      // Get Member Groups.
+      // v6 Get Member Groups.
       $role_list = ee('Model')->get('Role')->fields('role_id','name')->all()->getDictionary('role_id','name');
 
     }
@@ -351,15 +349,15 @@ class Unt_ldap_ext {
                                                     $this->defaults['use_ldap_account_creation']);
 
     return $settings;
-	}
+  }
 
-	/*
-	 Called by the member_member_login_start hook
-	*/
-	public function member_member_login_start()
-	{
-		return $this->login_authenticate_start();
-	}
+  /*
+    Called by the member_member_login_start hook
+  */
+  public function member_member_login_start()
+  {
+    return $this->login_authenticate_start();
+  }
 //-------------------------------------------------------
 
 
@@ -902,7 +900,7 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
 */  
 
 private function greedy_ldap_grab($login_settings, $user_info)
-{		
+{
 
   //$filter = "(cn={$user_info['username']})";
   $filter = "(uid=".$user_info['username'].")";
@@ -949,28 +947,28 @@ private function greedy_ldap_grab($login_settings, $user_info)
 
   */
 
-	private function debug_print($message, $br="<br/>\n")
-	{
-		if ($this->debug)
-		{
-			if (is_array($message))
-			{
-				print('<pre>');
-				print_r($message);
-				print('</pre>'.$br);
-			}
-			else
-			{
-				print($message.' '.$br);
-			}
-		}
-	}
+  private function debug_print($message, $br="<br/>\n")
+  {
+    if ($this->debug)
+    {
+      if (is_array($message))
+      {
+        print('<pre>');
+        print_r($message);
+        print('</pre>'.$br);
+      }
+      else
+      {
+        print($message.' '.$br);
+      }
+    }
+  }
 
 
-	private function ldap_encode($text)
-	{
-		return iconv("UTF-8", $this->settings['ldap_character_encode'], $text);
-	}
+  private function ldap_encode($text)
+  {
+    return iconv("UTF-8", $this->settings['ldap_character_encode'], $text);
+  }
 
 
 }
