@@ -5,7 +5,7 @@
  * Based on: NCE LDAP http://code.google.com/p/ee-ldap-extension/
  * Site: http://code.google.com/p/ee-ldap-extension/wiki/Introduction
  * 
- * Based on the DesignByFront v1.3
+ * Based on the DesignByFront.
  * http://github.com/designbyfront/LDAP-Authentication-for-ExpressionEngine
  * 
  * Rewritten by Blair Liikala for use at UNT.
@@ -20,6 +20,8 @@ This seems to be very complicated.
 
 - Remove v5 code?
 - Change classname to ee_ldap?
+
+- use regex to get ldaps:// out.
 
 */
 
@@ -364,17 +366,23 @@ class Unt_ldap_ext {
 
       // v6 Get Member Groups.
       $role_list = ee('Model')->get('Role')->fields('role_id','name')->all()->getDictionary('role_id','name');
+      $role_list["0"] = "Off";
+
+      // Get Role Groups. array(1 =>'super admin' ...etc)
+      $rolegroups = ee('Model')->get('RoleGroup')->fields('name', 'group_id')->all()->getDictionary('group_id', 'name');
+
+      // Opt In.  new way using role group.
+      $settings['use_LDAP_rolegroup_id']      = array('r', $rolegroups, array($this->defaults['use_LDAP_rolegroup_id'] ));
 
     }
+
     // Remove Super Admin from list.
     unset($role_list[1]);
 
     // Get custom member fields for settings options.
     $all_member_fields = ee('Model')->get('MemberField')->fields('m_field_label','m_field_id')->all()->getDictionary('m_field_id', 'm_field_label');
-
-    // Get Role Groups. array(1 =>'super admin' ...etc)
-    $rolegroups = ee('Model')->get('RoleGroup')->fields('name', 'group_id')->all()->getDictionary('group_id', 'name');
-
+    $all_member_fields["0"] = "Off";
+    
     $settings['groupID_facultystaff']		 = array('r', $role_list, $this->defaults['groupID_facultystaff']);
     $settings['groupID_student']			   = array('r', $role_list, $this->defaults['groupID_student']);
     $settings['groupID_alumni']				   = array('r', $role_list, $this->defaults['groupID_alumni']);
@@ -391,19 +399,25 @@ class Unt_ldap_ext {
     $settings['ldap_affiliation_id']        = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_affiliation_id']);
     $settings['exempt_from_role_changes']   = array('c', $role_list, $this->defaults['exempt_from_role_changes'] );
 
-
-    // Opt Out.  Old way.
-    $settings['protected_roles']            = array('c', $role_list, array(1, 3, $this->defaults['groupID_edu'] ));
-
-    // Opt In.  new way using role group.
-    $settings['use_LDAP_rolegroup_id']      = array('r', $rolegroups, array($this->defaults['use_LDAP_rolegroup_id'] ));
-
+    if (version_compare(APP_VER, '6.0.0', '<')) {     
+      // Opt Out.  Old way.
+      $settings['protected_roles']            = array('c', $role_list, array(1, 3, $this->defaults['groupID_edu'] ));
+    }
     
     $settings['ldap_url']                   = array('i', '', $this->defaults['ldap_url']); // example.com:port
     $settings['ldap_character_encode']      = array('i', '', $this->defaults['ldap_character_encode']);
     $settings['use_ldap_account_creation'] 	= array('r', array('yes' => 'yes_ldap_account_creation',
                                                               'no'  => 'no_ldap_account_creation'),
                                                     $this->defaults['use_ldap_account_creation']);
+
+
+    // Remove the ldaps:// if it was included by accident. Probably should use regex.
+    $ldap_url = explode(':', $settings['ldap_url']);
+    if ( count($ldap_url) > 2 ) {
+      $ldap_url[1] = ltrim($ldap_url[1], "//");
+      unset($ldap_url[0]);
+      $setttings['ldap_url'] = $ldap_url;
+    }                                              
 
     return $settings;
   }
@@ -665,21 +679,21 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
 
 
   //********************************* Update Custom Fields. *********************************//
-  if (array_key_exists('givenname', $user_info) AND $this->settings['first_name_field_id'] !='') {
+  if (array_key_exists('givenname', $user_info) AND $this->settings['first_name_field_id'] !='0') {
 
     $member_obj->{'m_field_id_'.$this->settings['first_name_field_id']} = $user_info['givenname'][0];
 
   }
 
 
-  if (array_key_exists('sn', $user_info) AND $this->settings['last_name_field_id'] !='') {
+  if (array_key_exists('sn', $user_info) AND $this->settings['last_name_field_id'] !='0') {
 
     $member_obj->{'m_field_id_'.$this->settings['last_name_field_id']} = $user_info['sn'][0];
 
   }
 
 
-  if (array_key_exists('publishstudentinfo', $user_info) AND $this->settings['ferpa_withdraw_field_id'] !='') {
+  if (array_key_exists('publishstudentinfo', $user_info) AND $this->settings['ferpa_withdraw_field_id'] !='0') {
   
     $member_obj->{'m_field_id_'.$this->settings['ferpa_withdraw_field_id']} = $user_info['publishstudentinfo'][0];
 
@@ -688,14 +702,14 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
   }
 
 
-  if (array_key_exists('edupersonaffiliation', $user_info) AND $this->settings['ldap_affiliation_id']) {
+  if (array_key_exists('edupersonaffiliation', $user_info) AND $this->settings['ldap_affiliation_id'] !='0') {
 
     $member_obj->{'m_field_id_'.$this->settings['ldap_affiliation_id']} = $user_info['edupersonaffiliation'][0];
     
   }
 
 
-  if ($this->settings['ldap_dump_field_id']) {
+  if ($this->settings['ldap_dump_field_id'] != '0') {
 
     $member_obj->{'m_field_id_'.$this->settings['ldap_dump_field_id']} = json_encode($user_info, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);
 
@@ -851,41 +865,41 @@ private function get_primaryrole_id_assignment ($user_info)
   $this->debug_print("Hourly: ".$alumni);
   $this->debug_print("Staff: ".$staff."</p>");
 
-  // 
+
   switch (true) {
 
-    case $discontinued:
+    case ($discontinued AND $this->settings['groupID_discontinued'] !='0' ):
       $this->debug_print('Returning Role of 12');
       return $this->settings['groupID_discontinued'];
       //return 12;
       break;
 
-    case $current_student:
+    case ($current_student AND $this->settings['groupID_student'] !='0' ) :
       $this->debug_print('Returning Role of '.$this->settings['groupID_student']);
       return $this->settings['groupID_student'];
       break;
 
-    case $faculty:
+    case ($faculty AND $this->settings['groupID_facultystaff'] !='0') :
       $this->debug_print('Returning Role of '.$this->settings['groupID_facultystaff']);
       return $this->settings['groupID_facultystaff'];
       break;
 
-    case $hourly_worker:
+    case ($hourly_worker AND $this->settings['groupID_student'] !='0') :
       $this->debug_print('Returning Role of '.$this->settings['groupID_student']);
       return $this->settings['groupID_student'];
       break;        
 
-    case $alumni:
+    case ($alumni AND $this->settings['groupID_alumni'] !='0') :
       $this->debug_print('Returning Role of '.$this->settings['groupID_alumni']);
       return $this->settings['groupID_alumni'];
       break;
 
-    case $staff:
+    case ($staff AND $this->settings['groupID_facultystaff'] !='0') :
       $this->debug_print('Returning Role of '.$this->settings['groupID_facultystaff']);
       return $this->settings['groupID_facultystaff'];
       break;
 
-    case $affiliate:
+    case ($affiliate AND $this->settings['groupID_affiliate'] !='0') :
       $this->debug_print('Returning Role of '.$this->settings['groupID_affiliate']);
       return $this->settings['groupID_affiliate'];
       break;      
@@ -913,16 +927,6 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
     ee()->logger->developer('LDAP URL is empty, can not authenticate.');
     // show_error(lang('LDAP URL is empty, can not authenticate'), 403);
     return;
-  }
-
-  $ldap_url = $this->settings['ldap_url'];
-  $ldap_url_array = explode(':', $ldap_url);
-
-  // Remove the ldaps:// if it was included by accident.
-  if ( count($ldap_url_array) > 2 ) {
-    $ldap_url_array[1] = ltrim($ldap_url_array[1], "//");
-    unset($ldap_url_array[0]);
-    ee()->logger->developer('LDAP URL includes "ldaps://" and should be removed.');
   }
 
   $login_settings        = array();
