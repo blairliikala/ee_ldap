@@ -33,7 +33,8 @@ class Unt_ldap_ext {
   public $description    = 'Handles LDAP login / account creation. Written by Blair';
   public $settings_exist = 'y';
   public $docs_url       = '';
-  protected $debug         = false;
+  public $settings       = array();
+  protected $debug       = false;
 
   /*
     Assuming Defaults:
@@ -410,14 +411,7 @@ class Unt_ldap_ext {
                                                               'no'  => 'no_ldap_account_creation'),
                                                     $this->defaults['use_ldap_account_creation']);
 
-
-    // Remove the ldaps:// if it was included by accident. Probably should use regex.
-    $ldap_url = explode(':', $settings['ldap_url']);
-    if ( count($ldap_url) > 2 ) {
-      $ldap_url[1] = ltrim($ldap_url[1], "//");
-      unset($ldap_url[0]);
-      $setttings['ldap_url'] = $ldap_url;
-    }                                              
+                                            
 
     return $settings;
   }
@@ -929,8 +923,16 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
     return;
   }
 
+  // Remove the ldaps:// if it was included by accident. Probably should use regex.
+  $ldap_url = explode(':', $this->settings['ldap_url']);
+  if ( count($ldap_url) > 2 ) {
+    $ldap_url[1] = ltrim($ldap_url[1], "//");
+    unset($ldap_url[0]);
+    $this->setttings['ldap_url'] = $ldap_url;
+  }
+
   $login_settings        = array();
-  $login_settings['ds']  = ldap_connect("ldaps://".$ldap_url_array[0], $ldap_url_array[1]);
+  $login_settings['ds']  = ldap_connect("ldaps://".$ldap_url[0], $ldap_url[1]);
   $login_settings['dn']  = "uid=".$user_info['username'].",ou=people,o=unt";
 
   $bind_result = @ldap_bind($login_settings['ds'] , $login_settings['dn'] , $unencrypted_password );
