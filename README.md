@@ -14,10 +14,8 @@ ignore_ldap_role
 ferpa_withdraw
 ldap_dump
 ```
-(v6) LDAP Role Group is created.
-```php
-LDAP Authenticated Roles
-```
+(v6) LDAP Role Group is created callled:
+"LDAP Authenticated Roles"
 
 
 
