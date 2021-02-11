@@ -1,11 +1,11 @@
 # ee_ldap
 LDAP Login support for ExpressionEngine v6, and maybe v5.
 
-Allows EE logins and member creation via LDAP, or by the native member managment system.
+Allows EE logins and member creation via LDAP, or by the native member managment system, by member role group.  Includes sorting, overrides and custom member fields.
 
-## Installation
-Installs like any other add-on.  On install:
-Member fields are created unless they match existing fields:
+## Installation and Setup
+Copy files like any other add-on.  On install:
+Member fields are created unless they match existing field short names below:
 ```php
 first_name
 last_name
@@ -19,10 +19,19 @@ ldap_dump
 LDAP Authenticated Roles
 ```
 
-- A login is first checked against LDAP.
-- If the member exists and the login is valid then directory information is pulled into fields, and an optional log is made for the member.
-- If the member does not exist, or the login is invaild then EE's native members login takes over.
+
+
+## Login Process:
+
+- For new members (not in EE yet), if the member is in LDAP but not in EE, then the member is added to the EE member database, and put into a role group based on LDAP fields.
+
+- For existing members, if their ole is in an LDAP role group then the directory information is synced with EE.
+
+- If the member is not in LDAP then EE's native members login takes over.
+
+
 - Members can be automatically sorted based on their LDAP affiliation.
+- The Super Admin (#1) is always skipped.
 
 - Option per member to ignore group assignment changes.
 - FERPA flag per member.
