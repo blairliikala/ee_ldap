@@ -71,7 +71,7 @@ class EE_ldap_ext {
     'last_name_field_id'         => 0, // From LDAP.
 
     // Misc
-    'ldap_url'                   => 'ldaps://id.ldap.untsystem.edu:389',
+    'ldap_url'                   => '',
     'use_ldap_account_creation'  => 'yes',
     'ldap_character_encode'      => 'Windows-1252',
   );
