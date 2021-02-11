@@ -6,6 +6,6 @@ return [
   'name'              => 'LDAP Authentication',
   'description'       => 'Uses LDAP for authentication and member creation.',
   'version'           => '3',
-  'namespace'         => 'addons\ldap',
+  'namespace'         => 'addons\ee_ldap',
   'settings_exist'    => true,
 ];
