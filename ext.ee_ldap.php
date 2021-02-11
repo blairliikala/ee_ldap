@@ -8,7 +8,7 @@
  * Based on the DesignByFront.
  * http://github.com/designbyfront/LDAP-Authentication-for-ExpressionEngine
  * 
- * Rewritten by Blair Liikala for use at UNT.
+ * Rewritten by Blair Liikala.
  * 
  */
 
