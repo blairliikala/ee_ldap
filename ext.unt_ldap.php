@@ -18,26 +18,22 @@ To Do:
 - Create Roles on install.
 This seems to be very complicated.
 
-- Remove v5 code?
-- Change classname to ee_ldap?
-
-- use regex to get ldaps:// out.
-
 */
 
 
-class Unt_ldap_ext {
+class EE_ldap_ext {
 
   public $name           = 'LDAP Authentication 3';
   public $version        = '3.0.0';
-  public $description    = 'Handles LDAP login / account creation. Written by Blair';
+  public $description    = 'Handles LDAP login / account creation.';
   public $settings_exist = 'y';
   public $docs_url       = '';
   public $settings       = array();
   protected $debug       = false;
 
+
   /*
-    Assuming Defaults:
+    Assumed Defaults:
     Super Admin = 1
     Banned = 2
     Guest = 3
@@ -45,27 +41,29 @@ class Unt_ldap_ext {
     Members = 5
   */
 
+
+  // First time install settings.
   protected $defaults = array(
-    // Possible Roles:
-    'groupID_student'            => 8,
-    'groupID_facultystaff'       => 9,
-    'groupID_alumni'             => 10,
-    'groupID_edu'                => 11,
-    'groupID_discontinued'       => 12,
-    'groupID_editors'            => 6,
-    'groupID_affiliate'          => 0,
+    // Possible Roles.        Existing Role ID.
+    'role_student'            => 8,
+    'role_facultystaff'       => 9,
+    'role_alumni'             => 10,
+    'role_educators'          => 11,
+    'role_discontinued'       => 12,
+    'role_editors'            => 6,
+    'role_affiliate'          => 0,
 
     // Roles that will not use LDAP to authenticate. v5
     'protected_roles'            => array(),
 
-    // Roles assigned to this group will use LDAP. v6
+    // RoleGroup ID.  Roles in this RoleGroup will use LDAP. v6
     'use_LDAP_rolegroup_id'      => 1,
 
     // A member will not be auto moved out of these roles.
     'exempt_from_role_changes'   => array(1, 6, 9),
 
     // Custom Member Field Ids:
-    'ignore_ldap_role_field_id'  => 0, // A member will not be auto moved out of their current role.
+    'ignore_role_field_id'       => 0, // A member will not be auto moved out of their current role.
     'ferpa_withdraw_field_id'    => 0, // Used in the templates to hide directory data from scripts.
     'ldap_dump_field_id'         => 0, // Log
     'ldap_affiliation_id'        => 0, // From LDAP.
@@ -73,7 +71,7 @@ class Unt_ldap_ext {
     'last_name_field_id'         => 0, // From LDAP.
 
     // Misc
-    'ldap_url'                   => 'id.ldap.untsystem.edu:389',
+    'ldap_url'                   => 'ldaps://id.ldap.untsystem.edu:389',
     'use_ldap_account_creation'  => 'yes',
     'ldap_character_encode'      => 'Windows-1252',
   );
@@ -99,13 +97,7 @@ class Unt_ldap_ext {
    
     $settings = $this->defaults;
 
-    /************************** Create Custom Member Fields **************************/
-    $member_fields = ee('Model')->get('MemberField')->all();
-
-    $fields = array();
-    foreach($member_fields as $field) {
-      $fields[] = $field->m_field_name;
-    }
+    /************************** Create Custom Member Fields, or get their IDs **************************/
 
     // Each Field.
     $field_setttings = array(
@@ -132,14 +124,14 @@ class Unt_ldap_ext {
         "type"          => "select",
         "label"         => "Ignore Role Auto Assignment",
         "name"          => "ignore_ldap_role",
-        "id"            => "ignore_ldap_role_field_id", // Field that stores its ID used in the script.  Must match var name.
+        "id"            => "ignore_role_field_id", // Field that stores its ID used in the script.  Must match var name.
         "description"   => "Will bypass LDAP group sorting and keep member in the set member group.",
         "settings"      => array('value_label_pairs' => 
                             array(
                               '' => "No",
                               'yes' => "Yes Ignore auto assignment",
                             )
-                            ),
+                          ),
       ],    
       [
         "type"          => "select",
@@ -152,7 +144,7 @@ class Unt_ldap_ext {
                               '' => "No",
                               'yes' => "Yes Flag is Set",
                             )
-                            ),
+                          ),
       ],
       [
         "type"          => "textarea",
@@ -163,11 +155,24 @@ class Unt_ldap_ext {
       ],             
     );
 
-    foreach($field_setttings as $thisfield) {
+    $member_fields = ee('Model')->get('MemberField')->all();
+
+    $fields = array();
+    foreach($member_fields as $field)
+    {
+      $fields[] = $field->m_field_name;
+    }    
+
+    foreach($field_setttings as $thisfield)
+    {
+
       if (in_array($thisfield['name'], $fields)) {
+
         // The field already exists, so get the current ID for the matching field and assign to the settings.
         $settings[ $thisfield['id'] ] = $member_fields->filter('m_field_name',$thisfield['name'])->first()->m_field_id;
+      
       } else {
+
         // Create Field
         $new_field = ee('Model')->make('MemberField');
         $new_field->m_field_type        = $thisfield['type'];
@@ -177,7 +182,8 @@ class Unt_ldap_ext {
         $new_field->m_field_settings    = $thisfield['settings'];
         $new_field->m_field_show_fmt    = 'n'; // hide format option.
         $new_field->save(); 
-        $settings[$thisfield->id] = $new_field->m_field_id;        
+        $settings[$thisfield->id] = $new_field->m_field_id;
+
       }      
     }
 
@@ -194,25 +200,25 @@ class Unt_ldap_ext {
       {
 
         if ($role->short_name === 'alumni') {
-          $settings['groupID_alumni'] = $role->group_id;
+          $settings['role_alumni'] = $role->group_id;
         }
         if ($role->short_name === 'faculty_staff') {
-          $settings['groupID_facultystaff'] = $role->group_id;
+          $settings['role_facultystaff'] = $role->group_id;
         }
         if ($role->short_name === 'students') {
-          $settings['groupID_student'] = $role->group_id;        
+          $settings['role_student'] = $role->group_id;        
         }
         if ($role->short_name === 'educators') {
-          $settings['groupID_edu'] = $role->group_id;        
+          $settings['role_educators'] = $role->group_id;        
         }
         if ($role->short_name === 'editors') {
-          $settings['groupID_editors'] = $role->group_id;        
+          $settings['role_editors'] = $role->group_id;        
         }    
         if ($role->short_name === 'discontinued') {
-          $settings['groupID_discontinued'] = $role->group_id;        
+          $settings['role_discontinued'] = $role->group_id;        
         }        
         if ($role->short_name === 'affiliate') {
-          $settings['groupID_affiliate'] = $role->group_id;        
+          $settings['role_affiliate'] = $role->group_id;        
         }
 
       }
@@ -225,25 +231,25 @@ class Unt_ldap_ext {
       {
 
         if ($role->short_name === 'alumni') {
-          $settings['groupID_alumni'] = $role->role_id;
+          $settings['role_alumni'] = $role->role_id;
         }
         if ($role->short_name === 'faculty_staff') {
-          $settings['groupID_facultystaff'] = $role->role_id;
+          $settings['role_facultystaff'] = $role->role_id;
         }
         if ($role->short_name === 'students') {
-          $settings['groupID_student'] = $role->role_id;        
+          $settings['role_student'] = $role->role_id;        
         }
         if ($role->short_name === 'educators') {
-          $settings['groupID_edu'] = $role->role_id;        
+          $settings['role_educators'] = $role->role_id;        
         }
         if ($role->short_name === 'editors') {
-          $settings['groupID_editors'] = $role->role_id;        
+          $settings['role_editors'] = $role->role_id;        
         }    
         if ($role->short_name === 'discontinued') {
-          $settings['groupID_discontinued'] = $role->role_id;        
+          $settings['role_discontinued'] = $role->role_id;        
         }        
         if ($role->short_name === 'affiliate') {
-          $settings['groupID_affiliate'] = $role->role_id;        
+          $settings['role_affiliate'] = $role->role_id;        
         }
 
       }
@@ -273,12 +279,12 @@ class Unt_ldap_ext {
         // Initial dataset of roles that will use LDAP.
         $role_members = array(
           1,
-          $settings['groupID_alumni'],
-          $settings['groupID_facultystaff'],
-          $settings['groupID_student'],
-          $settings['groupID_editors'],
-          $settings['groupID_discontinued'],
-          $settings['groupID_affiliate'],
+          $settings['role_alumni'],
+          $settings['role_facultystaff'],
+          $settings['role_student'],
+          $settings['role_editors'],
+          $settings['role_discontinued'],
+          $settings['role_affiliate'],
         );
 
         // Remove Empty roles.
@@ -384,30 +390,30 @@ class Unt_ldap_ext {
     $all_member_fields = ee('Model')->get('MemberField')->fields('m_field_label','m_field_id')->all()->getDictionary('m_field_id', 'm_field_label');
     $all_member_fields["0"] = "Off";
     
-    $settings['groupID_facultystaff']		 = array('r', $role_list, $this->defaults['groupID_facultystaff']);
-    $settings['groupID_student']			   = array('r', $role_list, $this->defaults['groupID_student']);
-    $settings['groupID_alumni']				   = array('r', $role_list, $this->defaults['groupID_alumni']);
-    $settings['groupID_edu']             = array('r', $role_list, $this->defaults['groupID_edu']);
-    $settings['groupID_discontinued']    = array('r', $role_list, $this->defaults['groupID_discontinued']);
-    $settings['groupID_affiliate']       = array('r', $role_list, $this->defaults['groupID_affiliate']);
-    $settings['groupID_editors']         = array('r', $role_list, $this->defaults['groupID_editors']);
+    $settings['role_facultystaff']	  = array('r', $role_list, $this->defaults['role_facultystaff']);
+    $settings['role_student']			    = array('r', $role_list, $this->defaults['role_student']);
+    $settings['role_alumni']				  = array('r', $role_list, $this->defaults['role_alumni']);
+    $settings['role_educators']       = array('r', $role_list, $this->defaults['role_educators']);
+    $settings['role_discontinued']    = array('r', $role_list, $this->defaults['role_discontinued']);
+    $settings['role_affiliate']       = array('r', $role_list, $this->defaults['role_affiliate']);
+    $settings['role_editors']         = array('r', $role_list, $this->defaults['role_editors']);
 
-    $settings['first_name_field_id']        = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['first_name_field_id']);
-    $settings['last_name_field_id']         = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['last_name_field_id']);
-    $settings['ignore_ldap_role_field_id']  = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ignore_ldap_role_field_id']);
-    $settings['ferpa_withdraw_field_id']    = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ferpa_withdraw_field_id']);
-    $settings['ldap_dump_field_id']         = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_dump_field_id']);
-    $settings['ldap_affiliation_id']        = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_affiliation_id']);
-    $settings['exempt_from_role_changes']   = array('c', $role_list, $this->defaults['exempt_from_role_changes'] );
+    $settings['first_name_field_id']      = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['first_name_field_id']);
+    $settings['last_name_field_id']       = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['last_name_field_id']);
+    $settings['ignore_role_field_id']     = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ignore_role_field_id']);
+    $settings['ferpa_withdraw_field_id']  = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ferpa_withdraw_field_id']);
+    $settings['ldap_dump_field_id']       = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_dump_field_id']);
+    $settings['ldap_affiliation_id']      = array('s', $all_member_fields, 'm_field_id_' . $this->defaults['ldap_affiliation_id']);
+    $settings['exempt_from_role_changes'] = array('c', $role_list, $this->defaults['exempt_from_role_changes'] );
 
     if (version_compare(APP_VER, '6.0.0', '<')) {     
       // Opt Out.  Old way.
-      $settings['protected_roles']            = array('c', $role_list, array(1, 3, $this->defaults['groupID_edu'] ));
+      $settings['protected_roles']        = array('c', $role_list, array(1, 3, $this->defaults['role_educators'] ));
     }
     
-    $settings['ldap_url']                   = array('i', '', $this->defaults['ldap_url']); // example.com:port
-    $settings['ldap_character_encode']      = array('i', '', $this->defaults['ldap_character_encode']);
-    $settings['use_ldap_account_creation'] 	= array('r', array('yes' => 'yes_ldap_account_creation',
+    $settings['ldap_url']                  = array('i', '', $this->defaults['ldap_url']); // example.com:port
+    $settings['ldap_character_encode']     = array('i', '', $this->defaults['ldap_character_encode']);
+    $settings['use_ldap_account_creation'] = array('r', array('yes' => 'yes_ldap_account_creation',
                                                               'no'  => 'no_ldap_account_creation'),
                                                     $this->defaults['use_ldap_account_creation']);
 
@@ -435,14 +441,14 @@ class Unt_ldap_ext {
   public function login_authenticate_start()
   {
    
-    $user_info = array(); // Store extra user info.
-    $user_info['username'] = ee()->input->post('username', true);
+    $ldap_data = array(); // Store extra user info.
+    $ldap_data['username'] = ee()->input->post('username', true);
 
     // Keep the password separated for security so it does not accidently get printed.
     $unencrypted_password = ee()->input->post('password', false);
 
     // Search for member in EE database.  Will return NULL if no member is found.
-    $member_obj = ee('Model')->get('Member')->filter('username', $user_info['username'])->first();
+    $member_obj = ee('Model')->get('Member')->filter('username', $ldap_data['username'])->first();
 
     // Get member's info from the EE database, and add it to the user_info array.
     if ($member_obj === NULL) {
@@ -468,7 +474,7 @@ class Unt_ldap_ext {
       // Role Groups to skip LDAP and use EE member.  Guests & Educators.
       if (version_compare(APP_VER, '6.0.0', '<')) {     
         //v5
-        // $user_info['current_primaryrole_id'] = $member_obj->group_id; // I think "group_id" is the right name.
+        // $ldap_data['current_primaryrole_id'] = $member_obj->group_id; // I think "group_id" is the right name.
 
         if ( in_array($member_obj->group_id, $this->settings['protected_roles']) )
         {
@@ -482,7 +488,6 @@ class Unt_ldap_ext {
       } else {
 
         // v6
-        // $user_info['current_primaryrole_id'] = $member_obj->PrimaryRole->getId();
 
         // Get all the member's current roles in an array.
         foreach($member_obj->getAllRoles() as $role)
@@ -515,19 +520,19 @@ class Unt_ldap_ext {
 
 
     // Get LDAP info to authenticate password, and either create new member or sync exisiting member.
-    $result = $this->authenticate_user_ldap($user_info, $unencrypted_password);
+    $result = $this->authenticate_user_ldap($ldap_data, $unencrypted_password);
 
     if ($result['authenticated'])
     {
       // Combine the LDAP data and the login info.
-      $everything = array_merge($result, $user_info);
+      $everything = array_merge($result, $ldap_data);
 
-      $this->debug_print('Attempting to sync or create user \''.$user_info['username'].'\' with EE member system...');
+      $this->debug_print('Attempting to sync or create user \''.$ldap_data['username'].'\' with EE member system...');
       $this->sync_user_details($everything, $unencrypted_password, $member_obj);
     }
     else
     {
-      $this->debug_print('Could not authenticate username \''.$user_info['username'].'\' with LDAP');
+      $this->debug_print('Could not authenticate username \''.$ldap_data['username'].'\' with LDAP');
       $this->debug_print('Will try to authenticate with local EE member system.');
     }
 
@@ -535,7 +540,7 @@ class Unt_ldap_ext {
 
       echo '<h5>Dump of user_info:</h5>';
       echo '<pre>';
-      var_dump($user_info);
+      var_dump($ldap_data);
       echo'</pre>';
 
       echo '<h5>Dump of LDAP result:</h5>';
@@ -563,10 +568,10 @@ class Unt_ldap_ext {
   Create EE user too....?
 */
 
-private function sync_user_details($user_info, $unencrypted_password, $member_obj)
+private function sync_user_details($ldap_data, $unencrypted_password, $member_obj)
 {
   
-  // Add random password so real passwords are not stored.  This won't work with EE yet.
+  // Add random password so real passwords are not stored.  This won't work with EE yet, or I missed something.
   // $password_array   = ee()->auth->hash_password(strtolower(substr(md5(mt_rand()),0,8)));
 
 
@@ -579,8 +584,6 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
       // Native Member Model method to create hashed/salted password and clear things.
       $this->debug_print("Syncing password.");
       $member_obj->hashAndUpdatePassword($unencrypted_password);
-      //$member_obj->password = $password_array['password'];
-      //$member_obj->salt     = $password_array['salt']; // Depreciated in V6
 
       $this->debug_print("Updating Last Visit and IP address.");
       $member_obj->set(array(
@@ -590,7 +593,7 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
       ));
 
     //**************** Update Groups ***************/
-    $member_ignore_role_assignments = $member_obj->{'m_field_id_' . $this->settings['ignore_ldap_role_field_id']};
+    $member_ignore_role_assignments = $member_obj->{'m_field_id_' . $this->settings['ignore_role_field_id']};
 
     if ($member_ignore_role_assignments === "yes") {
 
@@ -602,7 +605,7 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
       
       if (version_compare(APP_VER, '6.0.0', '<')) {
 
-        $allRoleIds = array( $member_obj->group_id ); //v5
+        $allRoleIds = array( $member_obj->group_id ); // v5
 
       } else {
 
@@ -630,7 +633,7 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
 
         $this->debug_print('Determining roles....');
 
-        $new_group_id = $this->get_primaryrole_id_assignment($user_info);
+        $new_group_id = $this->get_primary_role($ldap_data);
 
         if (version_compare(APP_VER, '6.0.0', '>')) {
           //v6
@@ -662,50 +665,53 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
 
     $this->debug_print('Attempting to create EE user...');
 
-    $member_obj = $this->create_ee_user($user_info, $unencrypted_password);
+    $member_obj = $this->create_ee_user($ldap_data, $unencrypted_password);
 
   }
 
 
   //********************************* Last Use of the Password, remove it. ****************//
-  unset($user_info['hashed_password'], $unencrypted_password, $password_array);
+  unset($ldap_data['hashed_password'], $unencrypted_password, $password_array);
  
 
 
   //********************************* Update Custom Fields. *********************************//
-  if (array_key_exists('givenname', $user_info) AND $this->settings['first_name_field_id'] !='0') {
+  if (array_key_exists('givenname', $ldap_data) AND $this->settings['first_name_field_id'])
+  {
 
-    $member_obj->{'m_field_id_'.$this->settings['first_name_field_id']} = $user_info['givenname'][0];
-
-  }
-
-
-  if (array_key_exists('sn', $user_info) AND $this->settings['last_name_field_id'] !='0') {
-
-    $member_obj->{'m_field_id_'.$this->settings['last_name_field_id']} = $user_info['sn'][0];
+    $member_obj->{'m_field_id_'.$this->settings['first_name_field_id']} = $ldap_data['givenname'][0];
 
   }
 
 
-  if (array_key_exists('publishstudentinfo', $user_info) AND $this->settings['ferpa_withdraw_field_id'] !='0') {
+  if (array_key_exists('sn', $ldap_data) AND $this->settings['last_name_field_id'])
+  {
+
+    $member_obj->{'m_field_id_'.$this->settings['last_name_field_id']} = $ldap_data['sn'][0];
+
+  }
+
+
+  if (array_key_exists('publishstudentinfo', $ldap_data) AND $this->settings['ferpa_withdraw_field_id'])
+  {
   
-    $member_obj->{'m_field_id_'.$this->settings['ferpa_withdraw_field_id']} = $user_info['publishstudentinfo'][0];
+    $member_obj->{'m_field_id_'.$this->settings['ferpa_withdraw_field_id']} = $ldap_data['publishstudentinfo'][0];
 
-  } else {
-    $member_obj->{'m_field_id_'.$this->settings['ferpa_withdraw_field_id']} = ''; // Set to no, or blank.
   }
 
 
-  if (array_key_exists('edupersonaffiliation', $user_info) AND $this->settings['ldap_affiliation_id'] !='0') {
+  if (array_key_exists('edupersonaffiliation', $ldap_data) AND $this->settings['ldap_affiliation_id'])
+  {
 
-    $member_obj->{'m_field_id_'.$this->settings['ldap_affiliation_id']} = $user_info['edupersonaffiliation'][0];
+    $member_obj->{'m_field_id_'.$this->settings['ldap_affiliation_id']} = $ldap_data['edupersonaffiliation'][0];
     
   }
 
 
-  if ($this->settings['ldap_dump_field_id'] != '0') {
+  if ($this->settings['ldap_dump_field_id'])
+  {
 
-    $member_obj->{'m_field_id_'.$this->settings['ldap_dump_field_id']} = json_encode($user_info, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);
+    $member_obj->{'m_field_id_'.$this->settings['ldap_dump_field_id']} = json_encode($ldap_data, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES);
 
   }
   /*********************************/
@@ -735,7 +741,7 @@ private function sync_user_details($user_info, $unencrypted_password, $member_ob
   - Return a freshly made member ID.
 */
 
-private function create_ee_user($user_info, $unencrypted_password)
+private function create_ee_user($ldap_data, $unencrypted_password)
 {
 
   $this->debug_print('Creating EE account using LDAP data...');
@@ -743,8 +749,8 @@ private function create_ee_user($user_info, $unencrypted_password)
   ee()->load->library('auth');
   $password_array = ee()->auth->hash_password($unencrypted_password);
 
-  $data['username']         		= $user_info['username'];
-  $data['email']            		= $user_info['mail'][0];
+  $data['username']         		= $ldap_data['username'];
+  $data['email']            		= $ldap_data['mail'][0];
   $data['ip_address']       		= ee()->input->ip_address();
   $data['join_date']        		= ee()->localize->now;
   $data['unique_id']        		= ee('Encrypt')->generateKey();
@@ -755,10 +761,10 @@ private function create_ee_user($user_info, $unencrypted_password)
     $data['salt'] = $password_array['salt']; // Not in use in v6.
   }
 
-  if ( array_key_exists('givenname', $user_info) && array_key_exists('sn', $user_info) )
+  if ( array_key_exists('givenname', $ldap_data) && array_key_exists('sn', $ldap_data) )
   {
 
-    $data['screen_name'] = $user_info['givenname'][0]." ".$user_info['sn'][0];
+    $data['screen_name'] = $ldap_data['givenname'][0]." ".$ldap_data['sn'][0];
 
   } else {
 
@@ -768,11 +774,11 @@ private function create_ee_user($user_info, $unencrypted_password)
 
    if (version_compare(APP_VER, '6.0.0', '<')) {
 
-    $data['group_id'] = $this->get_primaryrole_id_assignment($user_info);
+    $data['group_id'] = $this->get_primary_role($ldap_data);
 
   } else {
 
-    $data['role_id'] = $this->get_primaryrole_id_assignment($user_info);
+    $data['role_id'] = $this->get_primary_role($ldap_data);
 
   }
 
@@ -781,7 +787,13 @@ private function create_ee_user($user_info, $unencrypted_password)
   // Create member using Model.
   $member = ee('Model')->make('Member');
   $member->set($data);
-  $member->validate();
+
+  if ($member->failed())
+  {
+      var_dump($member);
+      return;
+  }
+
   $member->save();
 
   if ($member !== NULL)
@@ -794,7 +806,7 @@ private function create_ee_user($user_info, $unencrypted_password)
 
   } else {
     $this->debug_print('EE user not created.  Exiting...');
-    exit('Could not create user account for '.$user_info['username'].'<br/>'."\n");
+    exit('Could not create user account for '.$ldap_data['username'].'<br/>'."\n");
   }
 }
 
@@ -809,7 +821,7 @@ private function create_ee_user($user_info, $unencrypted_password)
   ...Because it just isn't that simple...
 */
 
-private function get_primaryrole_id_assignment ($user_info)
+private function get_primary_role ($ldap_data)
 {
 
   $discontinued     = false;
@@ -820,24 +832,24 @@ private function get_primaryrole_id_assignment ($user_info)
   $staff            = false;
   $affiliate        = false;
 
-  if( array_key_exists('edupersonaffiliation', $user_info) && isset($user_info['edupersonaffiliation']) ) {
+  if( array_key_exists('edupersonaffiliation', $ldap_data) && isset($ldap_data['edupersonaffiliation']) ) {
 
-    if(in_array("student", $user_info['edupersonaffiliation'])) {
+    if(in_array("student", $ldap_data['edupersonaffiliation'])) {
       $current_student = true;
     }
 
-    if(in_array("faculty", $user_info['edupersonaffiliation'])) {
+    if(in_array("faculty", $ldap_data['edupersonaffiliation'])) {
       $faculty = true;
     }
 
-    if(in_array("staff", $user_info['edupersonaffiliation'])) {
+    if(in_array("staff", $ldap_data['edupersonaffiliation'])) {
       $staff = true;
     }
 
-    if(in_array("alum", $user_info['edupersonaffiliation'])) {
+    if(in_array("alum", $ldap_data['edupersonaffiliation'])) {
       $alumni = true;
     }
-    if(in_array("affiliate", $user_info['edupersonaffiliation'])) {
+    if(in_array("affiliate", $ldap_data['edupersonaffiliation'])) {
       $affiliate = true;
     }
 
@@ -845,8 +857,8 @@ private function get_primaryrole_id_assignment ($user_info)
     $discontinued = true;
   }
 
-  if( array_key_exists('untjobtitle', $user_info) && isset($user_info['untjobtitle']) ) {
-    if(in_array("Student Assistant", $user_info['untjobtitle'])) {
+  if( array_key_exists('untjobtitle', $ldap_data) && isset($ldap_data['untjobtitle']) ) {
+    if(in_array("Student Assistant", $ldap_data['untjobtitle'])) {
       $hourly_worker = true;
     }
   }
@@ -862,40 +874,40 @@ private function get_primaryrole_id_assignment ($user_info)
 
   switch (true) {
 
-    case ($discontinued AND $this->settings['groupID_discontinued'] !='0' ):
+    case ($discontinued AND $this->settings['role_discontinued'] !='0' ):
       $this->debug_print('Returning Role of 12');
-      return $this->settings['groupID_discontinued'];
+      return $this->settings['role_discontinued'];
       //return 12;
       break;
 
-    case ($current_student AND $this->settings['groupID_student'] !='0' ) :
-      $this->debug_print('Returning Role of '.$this->settings['groupID_student']);
-      return $this->settings['groupID_student'];
+    case ($current_student AND $this->settings['role_student'] !='0' ) :
+      $this->debug_print('Returning Role of '.$this->settings['role_student']);
+      return $this->settings['role_student'];
       break;
 
-    case ($faculty AND $this->settings['groupID_facultystaff'] !='0') :
-      $this->debug_print('Returning Role of '.$this->settings['groupID_facultystaff']);
-      return $this->settings['groupID_facultystaff'];
+    case ($faculty AND $this->settings['role_facultystaff'] !='0') :
+      $this->debug_print('Returning Role of '.$this->settings['role_facultystaff']);
+      return $this->settings['role_facultystaff'];
       break;
 
-    case ($hourly_worker AND $this->settings['groupID_student'] !='0') :
-      $this->debug_print('Returning Role of '.$this->settings['groupID_student']);
-      return $this->settings['groupID_student'];
+    case ($hourly_worker AND $this->settings['role_student'] !='0') :
+      $this->debug_print('Returning Role of '.$this->settings['role_student']);
+      return $this->settings['role_student'];
       break;        
 
-    case ($alumni AND $this->settings['groupID_alumni'] !='0') :
-      $this->debug_print('Returning Role of '.$this->settings['groupID_alumni']);
-      return $this->settings['groupID_alumni'];
+    case ($alumni AND $this->settings['role_alumni'] !='0') :
+      $this->debug_print('Returning Role of '.$this->settings['role_alumni']);
+      return $this->settings['role_alumni'];
       break;
 
-    case ($staff AND $this->settings['groupID_facultystaff'] !='0') :
-      $this->debug_print('Returning Role of '.$this->settings['groupID_facultystaff']);
-      return $this->settings['groupID_facultystaff'];
+    case ($staff AND $this->settings['role_facultystaff'] !='0') :
+      $this->debug_print('Returning Role of '.$this->settings['role_facultystaff']);
+      return $this->settings['role_facultystaff'];
       break;
 
-    case ($affiliate AND $this->settings['groupID_affiliate'] !='0') :
-      $this->debug_print('Returning Role of '.$this->settings['groupID_affiliate']);
-      return $this->settings['groupID_affiliate'];
+    case ($affiliate AND $this->settings['role_affiliate'] !='0') :
+      $this->debug_print('Returning Role of '.$this->settings['role_affiliate']);
+      return $this->settings['role_affiliate'];
       break;      
 
     default;
@@ -915,7 +927,7 @@ private function get_primaryrole_id_assignment ($user_info)
 /*
   Make the LDAP connection, and bind using the user's credentials.
 */
-private function authenticate_user_ldap($user_info, $unencrypted_password)
+private function authenticate_user_ldap($ldap_data, $unencrypted_password)
 {
   if ($this->settings['ldap_url'] =='') {
     ee()->logger->developer('LDAP URL is empty, can not authenticate.');
@@ -923,31 +935,36 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
     return;
   }
 
-  // Remove the ldaps:// if it was included by accident. Probably should use regex.
-  $ldap_url = explode(':', $this->settings['ldap_url']);
-  if ( count($ldap_url) > 2 ) {
-    $ldap_url[1] = ltrim($ldap_url[1], "//");
-    unset($ldap_url[0]);
-    $this->setttings['ldap_url'] = $ldap_url;
-  }
+  $ldap_array = explode("," ,$this->settings['ldap_url']);
 
-  $login_settings        = array();
-  $login_settings['ds']  = ldap_connect("ldaps://".$ldap_url[0], $ldap_url[1]);
-  $login_settings['dn']  = "uid=".$user_info['username'].",ou=people,o=unt";
+  foreach($ldap_array as $ldap)
+  {
 
-  $bind_result = @ldap_bind($login_settings['ds'] , $login_settings['dn'] , $unencrypted_password );
+    $login_settings        = array();
+    $login_settings['ds']  = ldap_connect($ldap);
+    $login_settings['dn']  = "uid=".$ldap_data['username'].",ou=people,o=unt";
 
-  $this->debug_print("Bind result: $bind_result");
-  $this->debug_print("LDAP Error: " . ldap_error($login_settings['ds']) );
-
-  //If the login was correct, assume they were a student with the correct login.
-  if ($bind_result){
-    $this->debug_print("LDAP Bind successful, so login is correct.");
-    return $this->greedy_ldap_grab($login_settings, $user_info);
+    if (!$login_settings['ds'])
+    {
+      $this->debug_print('Could not connect to LDAP server: '.$ldap);
+      return false;
+    }
     
-  }
+    $bind_result = @ldap_bind($login_settings['ds'] , $login_settings['dn'] , $unencrypted_password );
 
-  @ldap_unbind($login_settings['ds']);
+    $this->debug_print("Bind result: $bind_result");
+    $this->debug_print("LDAP Error: " . ldap_error($login_settings['ds']) );
+
+    //If the login was correct, assume they were a student with the correct login.
+    if ($bind_result){
+      $this->debug_print("LDAP Bind successful, so login is correct.");
+      return $this->get_user_record($login_settings, $ldap_data);
+      
+    }
+
+    @ldap_unbind($login_settings['ds']);
+
+  }
 
 }
 
@@ -961,11 +978,11 @@ private function authenticate_user_ldap($user_info, $unencrypted_password)
   After binding, searches the directory for the record and returns user's data record.
 */  
 
-private function greedy_ldap_grab($login_settings, $user_info)
+private function get_user_record($login_settings, $ldap_data)
 {
 
-  //$filter = "(cn={$user_info['username']})";
-  $filter = "(uid=".$user_info['username'].")";
+  //$filter = "(cn={$ldap_data['username']})";
+  $filter = "(uid=".$ldap_data['username'].")";
   $this->debug_print('...Searching the database for user record that matches '.$filter.' and returning meta...');
   
   // The fields to pull from the directory entry.
@@ -989,13 +1006,13 @@ private function greedy_ldap_grab($login_settings, $user_info)
   $this->debug_print('Data for '.$info["count"].' item returned.  Should be 1.');
 
   // Since there could be more than one, only use the first entry it finds.
-  $user_info = $info[0];
+  $ldap_data = $info[0];
 
   // Authentication successful!
-  $user_info['authenticated'] = true;
+  $ldap_data['authenticated'] = true;
   $this->debug_print('Users details obtains, LDAP query complete.');
 
-  return $user_info;
+  return $ldap_data;
 }
 //-------------------------------------------------------
 
