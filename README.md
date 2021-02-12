@@ -17,7 +17,7 @@ By default new members authenticated over LDAP are put in the "Members" #5 role,
 
 Example:
 - LDAP Role Group (LDAP)
-    - Members, uses LDAP & Default member group.
+    - Members, uses LDAP & is the default new member role.
     - Subscribers, uses LDAP,
 
 - Editors Role Group, Native Login
