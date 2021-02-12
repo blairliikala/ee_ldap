@@ -1,4 +1,4 @@
-# EE LDAP
+# ExpressionEngine LDAP Login
 LDAP Login support for ExpressionEngine v6.  v5 tags are included, but untested.
 
 EE logins and member creation via LDAP, or by the native member managment system.  Includes logins by Role Group roles, and basic member fields.
