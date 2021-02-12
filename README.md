@@ -1,36 +1,29 @@
-# ee_ldap
-LDAP Login support for ExpressionEngine v6, and maybe v5.
+# EE LDAP
+LDAP Login support for ExpressionEngine v6.  v5 tags are included, but untested.
 
-Allows EE logins and member creation via LDAP, or by the native member managment system, by member role group.  Includes sorting, overrides and custom member fields.
+EE logins and member creation via LDAP, or by the native member managment system.  Includes logins by Role Group roles, and basic member fields.
 
 ## Installation and Setup
 Copy files like any other add-on.  On install:
 Member fields are created unless they match existing field short names below:
-```php
-first_name
-last_name
-ldap_affiliation
-ignore_ldap_role
-ferpa_withdraw
-ldap_dump
-```
-(v6) LDAP Role Group is created callled:
-"LDAP Authenticated Roles"
+"first_name"
+"last_name"
+"ldap_dump" (json dump of LDAP record response)
 
-
+(v6) LDAP Role Group is created.
 
 ## Login Process:
+By default new members authenticated over LDAP are put in the "Members" #5 role, and can be changed in the Settings.  Additional roles that need to use LDAP can be added to the LDAP Role Group.  Members can be moved into roles while still authenticating through LDAP.  Roles not in the LDAP Role Group will use the native login process.
 
-- For new members (not in EE yet), if the member is in LDAP but not in EE, then the member is added to the EE member database, and put into a role group based on LDAP fields.
+Example:
+- LDAP Role Group (LDAP)
+    - Members (LDAP), Default member group.
+    - Subscribers (LDAP)
 
-- For existing members, if their ole is in an LDAP role group then the directory information is synced with EE.
+- Editors Role Group (Not LDAP)
+    - Supervisors
+    - Reviewers
 
-- If the member is not in LDAP then EE's native members login takes over.
+Everyone's directory services are slightly different so there may always be additional parameters needed in the LDAP searching fucntions
 
-
-- Members can be automatically sorted based on their LDAP affiliation.
-- The Super Admin (#1) is always skipped.
-
-- Option per member to ignore group assignment changes.
-- FERPA flag per member.
-- Creates an LDAP Role Group.  Member Roles are added to this group to use LDAP.
+Also the Super Admin (ID 1) is skipped.
