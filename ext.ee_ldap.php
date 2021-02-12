@@ -20,7 +20,7 @@ class Ee_ldap_ext {
   public $settings_exist = 'y';
   public $docs_url       = '';
   public $settings       = array();
-  protected $debug       = false;
+  protected $debug       = true;
 
 
   /*
@@ -54,6 +54,10 @@ class Ee_ldap_ext {
     'use_ldap_account_creation'  => 'yes',
     'ldap_character_encode'      => 'Windows-1252',
     'ldap_username_attribute'    => 'uid', // uid.
+    'ldap_attributes'            => '', // Comma-seperated that needs to be an array.
+
+    'ldap_search_user'           => '',
+    'ldap_search_password'       => '',
   );
 
 
@@ -310,6 +314,9 @@ class Ee_ldap_ext {
     $settings['ldap_url']                  = array('i', '', $this->defaults['ldap_url']); // example.com:port
     $settings['ldap_character_encode']     = array('i', '', $this->defaults['ldap_character_encode']);
     $settings['ldap_username_attribute']   = array('i', '', $this->defaults['ldap_username_attribute']);
+    $settings['ldap_attributes']           = array('i', '', $this->defaults['ldap_attributes']);
+    $settings['ldap_search_user']          = array('i', '', $this->defaults['ldap_search_user']);
+    $settings['ldap_search_password']      = array('i', '', $this->defaults['ldap_search_password']);
     $settings['use_ldap_account_creation'] = array('r', array('yes' => 'yes_ldap_account_creation',
                                                               'no'  => 'no_ldap_account_creation'),
                                                     $this->defaults['use_ldap_account_creation']);
@@ -675,18 +682,19 @@ private function authenticate_user_ldap($ldap_data, $unencrypted_password)
     }
 
     // Bind to LDAP.
-    $ldap_search_user = "uid=".$ldap_data['username'].",ou=people,o=unt"; // MOVED THIS TO SETTINGS.
+    $ldap_search_user = $this->settings['ldap_username_attribute']."=".$ldap_data['username'];
 
-    if (empty($ldap_search_user))
+    if ( empty($this->settings['ldap_search_user']))
     {
 
 			$this->debug_print('Binding anonymously...');
-			$bind_result = @ldap_bind($conn); // this is an "anonymous" bind, typically read-only access
+			$bind_result = @ldap_bind($connection); // this is an "anonymous" bind, typically read-only access
 
     } else {
 
       $this->debug_print('Binding with user: '.$ldap_search_user);
-      $bind_result = @ldap_bind($connection , $ldap_search_user, $unencrypted_password );
+      $bind_result = @ldap_bind($connection , $this->settings['ldap_search_user'], $this->settings['ldap_search_password'] );
+      //$bind_result = @ldap_bind($connection , $ldap_data['username'], $unencrypted_password );
 
     }
 
@@ -722,11 +730,21 @@ private function get_user_record($connection, $ldap_search_user, $ldap_data)
   $filter = "(".$this->settings['ldap_username_attribute']."=".$ldap_data['username'].")";
   $this->debug_print('...Searching the database for user record that matches '.$filter.' and returning meta...');
   
-  // The fields to pull from the directory entry.
-  // $attributes = array('givenName','mail','sn','cn','edupersonaffiliation','title'); // Not used?
-
   // Actually do the search of the user, and pull the above info.
-  $result = ldap_search($connection, $ldap_search_user, $filter);
+  if (empty($this->settings['ldap_attributes']))
+  {
+    // The fields to pull from the directory entry.
+    // $attributes = array('givenName','mail','sn','cn','edupersonaffiliation','title'); // Not used?
+    $attributes = explode(",", $this->settings['ldap_attributes']);
+
+    $result = ldap_search($connection, $ldap_search_user, $filter);
+  
+  } else {
+
+    $result = ldap_search($connection, $ldap_search_user, $filter, $attributes);
+  
+  }
+  
   $this->debug_print("Search Result: {$result}");
 
   // If the search comes up empty, end and report the error.
