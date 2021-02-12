@@ -32,7 +32,6 @@ class Ee_ldap_ext {
     Members = 5
   */
 
-
   // First time install settings.
   protected $defaults = array(
     // Possible Roles.        Existing Role ID.
@@ -51,7 +50,6 @@ class Ee_ldap_ext {
 
     // Misc
     'ldap_url'                   => '', // ldaps://myLDAPserver.com:389
-    'use_ldap_account_creation'  => 'yes',
     'ldap_character_encode'      => 'Windows-1252',
     'ldap_username_attribute'    => 'uid', // uid.
     'ldap_attributes'            => '', // Comma-seperated that needs to be an array.
@@ -316,12 +314,7 @@ class Ee_ldap_ext {
     $settings['ldap_username_attribute']   = array('i', '', $this->defaults['ldap_username_attribute']);
     $settings['ldap_attributes']           = array('i', '', $this->defaults['ldap_attributes']);
     $settings['ldap_search_user']          = array('i', '', $this->defaults['ldap_search_user']);
-    $settings['ldap_search_password']      = array('i', '', $this->defaults['ldap_search_password']);
-    $settings['use_ldap_account_creation'] = array('r', array('yes' => 'yes_ldap_account_creation',
-                                                              'no'  => 'no_ldap_account_creation'),
-                                                    $this->defaults['use_ldap_account_creation']);
-
-                                            
+    $settings['ldap_search_password']      = array('i', '', $this->defaults['ldap_search_password']);                                            
 
     return $settings;
   }
@@ -426,13 +419,15 @@ class Ee_ldap_ext {
     // Get LDAP info to authenticate password, and either create new member or sync exisiting member.
     $result = $this->authenticate_user_ldap($ldap_data, $unencrypted_password);
 
-    if ($result['authenticated'])
+    if ($result['authenticated'] )
     {
+
       // Combine the LDAP data and the login info.
       $everything = array_merge($result, $ldap_data);
 
       $this->debug_print('Attempting to sync or create user \''.$ldap_data['username'].'\' with EE member system...');
       $this->sync_user_details($everything, $unencrypted_password, $member_obj);
+
     }
     else
     {
@@ -501,7 +496,7 @@ private function sync_user_details($ldap_data, $unencrypted_password, $member_ob
 
 
   //********************************* EE account creation  *********************************//
-  if ($this->settings['use_ldap_account_creation'] === 'yes' && $member_obj === NULL) {
+  if ($member_obj === NULL) {
 
     $this->debug_print('Attempting to create EE user...');
 
@@ -682,7 +677,9 @@ private function authenticate_user_ldap($ldap_data, $unencrypted_password)
     }
 
     // Bind to LDAP.
-    $ldap_search_user = $this->settings['ldap_username_attribute']."=".$ldap_data['username'];
+    //$ldap_search_user = $this->settings['ldap_username_attribute']."=".$ldap_data['username'];
+    $ldap_search_user = $this->settings['ldap_username_attribute']."=".$ldap_data['username'].",ou=people,o=unt";
+
 
     if ( empty($this->settings['ldap_search_user']))
     {
@@ -733,16 +730,23 @@ private function get_user_record($connection, $ldap_search_user, $ldap_data)
   // Actually do the search of the user, and pull the above info.
   if (empty($this->settings['ldap_attributes']))
   {
+
+    $result = ldap_search($connection, $ldap_search_user, $filter);
+
+  } 
+  else 
+  {
     // The fields to pull from the directory entry.
     // $attributes = array('givenName','mail','sn','cn','edupersonaffiliation','title'); // Not used?
     $attributes = explode(",", $this->settings['ldap_attributes']);
 
-    $result = ldap_search($connection, $ldap_search_user, $filter);
-  
-  } else {
+    $result = ldap_search($connection, $ldap_search_user, $filter, $attributes);  
 
-    $result = ldap_search($connection, $ldap_search_user, $filter, $attributes);
-  
+  }
+
+  if (!$result)
+  {
+    return false;
   }
   
   $this->debug_print("Search Result: {$result}");
