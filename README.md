@@ -26,4 +26,6 @@ Example:
 
 Everyone's directory services are slightly different so there may always be additional parameters needed in the LDAP searching fucntions
 
-Also the Super Admin (ID 1) is skipped.
+The Super Admin (ID 1) is skipped.
+
+When LDAP is down, or the login is incorrect then EE's native login takes over.
