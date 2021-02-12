@@ -6,6 +6,9 @@ $lang = array(
 	'use_ldap_account_creation' => 'Use LDAP for account creation',
 	'role_ldap'				    => 'Member Role that <strong>new</strong> LDAP users will be added to.',
 	'ldap_username_attribute'	=> 'Username Attribute, usually uid',
+	'ldap_attributes'		    => '(optional) Attributes for ldap_search. Comma-seperated.',
+	'ldap_search_user'			=> 'Username for LDAP search user.',
+	'ldap_search_password'		=> 'Password for LDAP search user.',
 
 	'first_name_field_id'       => '<h2>First Name Field</h2>',
 	'last_name_field_id'        => '<h2>Last Name Field</h2>',
