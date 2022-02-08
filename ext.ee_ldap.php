@@ -131,7 +131,7 @@ class Ee_ldap_ext {
         //$new_field->m_field_settings    = isset($thisfield['settings']) ? $thisfield['settings'] : array('type' => 'text');
         $new_field->m_field_show_fmt    = 'n'; // hide format option.
         $new_field->save(); 
-        $settings[$thisfield->id] = $new_field->m_field_id;
+        $settings[$thisfield['id']] = $new_field->m_field_id;
 
       }      
     }
