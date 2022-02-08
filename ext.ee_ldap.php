@@ -127,8 +127,8 @@ class Ee_ldap_ext {
         $new_field->m_field_type        = $thisfield['type'];
         $new_field->m_field_label       = $thisfield['label'];
         $new_field->m_field_name        = $thisfield['name'];
-        $new_field->m_field_description = $thisfield['description'];
-        $new_field->m_field_settings    = $thisfield['settings'];
+        $new_field->m_field_description = isset($thisfield['description']) ? $thisfield['description'] : '';
+        //$new_field->m_field_settings    = isset($thisfield['settings']) ? $thisfield['settings'] : array('type' => 'text');
         $new_field->m_field_show_fmt    = 'n'; // hide format option.
         $new_field->save(); 
         $settings[$thisfield->id] = $new_field->m_field_id;
