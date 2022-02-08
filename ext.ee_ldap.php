@@ -810,4 +810,3 @@ private function get_user_record($connection, $ldap_search_user, $ldap_data)
 
 
 }
-// END CLASS unt_ldap
