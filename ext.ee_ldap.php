@@ -224,7 +224,6 @@ class Ee_ldap_ext {
     {
       ee()->db->query(ee()->db->insert_string('exp_extensions',
         array(
-          'extension_id' => '',
           'class'        => __CLASS__,
           'method'       => $method,
           'hook'         => $hook,
